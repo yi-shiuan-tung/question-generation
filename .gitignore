@@ -2,3 +2,6 @@
 .idea
 data_set/
 embedding/
+*.pyc
+*/.cache/*
+*.pkl
