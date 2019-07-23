@@ -3,5 +3,5 @@
 data_set/
 embedding/
 *.pyc
-*/.cache/*
+*.cache*
 *.pkl

@@ -1,4 +1,4 @@
-from preprocess import extract_sentences, get_words
+from seq2seq.preprocess import extract_sentences, get_words
 
 
 def test_extract_sentences():

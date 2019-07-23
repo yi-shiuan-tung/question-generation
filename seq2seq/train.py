@@ -2,9 +2,11 @@ import os
 import bcolz
 import pickle
 import numpy as np
-from constants import *
-from models import EncoderRNN, DecoderRNN
-from plotting import show_plot
+from torch.optim.lr_scheduler import LambdaLR
+
+from seq2seq.constants import *
+from seq2seq.models import EncoderRNN, DecoderRNN
+from seq2seq.plotting import show_plot
 import torch
 from torch import optim
 from torch import nn
@@ -12,7 +14,6 @@ import torch.nn.functional as F
 import random
 import time
 import math
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 teacher_forcing_ratio = 0.5
@@ -52,7 +53,7 @@ def pad_tensor(tensor_list):
         if len(tensor.size()) != 2:
             raise Exception("Need 2d tensor as input")
         tensor_list[i] = F.pad(input=tensor,
-                               pad=(0, 0, 0, max_tensor_length-tensor.size()[0]),
+                               pad=(0, 0, 0, max_tensor_length - tensor.size()[0]),
                                value=0)
     tensor_size = tensor_list[0].size()
     for tensor in tensor_list:
@@ -74,7 +75,7 @@ def time_since(since, percent):
     return '%s (- %s)' % (as_minutes(s), as_minutes(rs))
 
 
-def train(train_data, word_to_index, vocabulary, encoder, decoder, n_iters, learning_rate=1e-3, batch_size=64):
+def train(train_data, word_to_index, vocabulary, encoder, decoder, n_iters, learning_rate=1e-3, batch_size=128):
     print("Starting training")
     start = time.time()
     plot_losses = []
@@ -89,6 +90,11 @@ def train(train_data, word_to_index, vocabulary, encoder, decoder, n_iters, lear
 
     criterion = nn.NLLLoss()
 
+    # def decay_function(episode):
+    #     return learning_rate * (0.5 ** episode // 100)
+    # encoder_scheduler = LambdaLR(encoder_optimizer, lr_lambda=decay_function)
+    # decoder_scheduler = LambdaLR(decoder_optimizer, lr_lambda=decay_function)
+
     for epoch in range(1, n_iters + 1):
         input_tensors = []
         output_tensors = []
@@ -101,6 +107,10 @@ def train(train_data, word_to_index, vocabulary, encoder, decoder, n_iters, lear
         pad_tensor(output_tensors)
         input_tensor = torch.stack(input_tensors)
         output_tensor = torch.stack(output_tensors)
+
+        if torch.cuda.is_available():
+            input_tensor = input_tensor.cuda()
+            output_tensor = output_tensor.cuda()
 
         loss = run_epoch(input_tensor, output_tensor, word_to_index, encoder, decoder, encoder_optimizer,
                          decoder_optimizer, criterion, batch_size)
@@ -119,12 +129,16 @@ def train(train_data, word_to_index, vocabulary, encoder, decoder, n_iters, lear
             plot_losses.append(plot_loss_avg)
             plot_loss_total = 0
 
+        # encoder_scheduler.step(epoch)
+        # decoder_scheduler.step(epoch)
+
     show_plot(plot_losses)
     torch.save(encoder.state_dict(), "encoder.pkl")
     torch.save(decoder.state_dict(), "decoder.pkl")
 
 
-def run_epoch(input_tensor, output_tensor, word_to_index, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, batch_size):
+def run_epoch(input_tensor, output_tensor, word_to_index, encoder, decoder, encoder_optimizer, decoder_optimizer,
+              criterion, batch_size):
     encoder_hidden = encoder.init_hidden(batch_size)
 
     encoder_optimizer.zero_grad()
@@ -201,17 +215,17 @@ def main():
     vocabulary = pickle.load(open(f'{EMBEDDING_DIR}/vocab.pkl', 'rb'))
     print("Number of words in data set: %d" % len(vocabulary))
     embedding_matrix, vocab_to_index = map_vocab_to_embedding(vocabulary)
-    # embedding_matrix = torch.tensor(pickle.load(open("embedding_matrix.pkl", "rb")), device=device)
-    # vocab_to_index = pickle.load(open("vocab_to_index.pkl", "rb"))
 
     hidden_size = 600
     encoder = EncoderRNN(embedding_matrix, hidden_size)
     decoder = DecoderRNN(embedding_matrix, hidden_size)
+    if torch.cuda.is_available():
+        encoder.cuda()
+        decoder.cuda()
     train_file = open(os.path.join(EMBEDDING_DIR, "train.pkl"), 'rb')
     train_data = pickle.load(train_file)
     train_file.close()
-    n_iters = 1000
-    print(train_data[:5])
+    n_iters = 2000
     train(train_data, vocab_to_index, vocabulary, encoder, decoder, n_iters)
 
 

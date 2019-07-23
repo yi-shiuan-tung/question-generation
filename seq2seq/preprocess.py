@@ -7,7 +7,8 @@ import numpy as np
 import re
 import unicodedata
 from functools import reduce
-from constants import *
+from gensim.utils import tokenize
+from seq2seq.constants import *
 
 
 def say(s, stream=sys.stdout):
@@ -94,7 +95,7 @@ def get_paragraph_questions(json_file_name, vocab_file=None):
     vocab.add(END_TOKEN)
     vocab.add(UNKNOWN_WORD)
     pickle.dump(list(vocab), open(os.path.join(EMBEDDING_DIR, "vocab.pkl"), 'wb'))
-    pickle.dump(data, open(os.path.join(EMBEDDING_DIR, "dev.pkl"), 'wb'))
+    pickle.dump(data, open(os.path.join(EMBEDDING_DIR, "%s.pkl" % json_file_name.split("-")[0]), 'wb'))
     print("Done processing data set %s" % json_file_name)
 
 
@@ -135,12 +136,8 @@ def unicode_to_ascii(s):
     )
 
 
-# Lowercase, trim, and remove non-alphanumeric characters
 def normalize_string(s):
-    s = unicode_to_ascii(s.lower().strip())
-    s = re.sub(r"([.!?])", r" ", s)
-    s = re.sub(r"[^a-zA-Z0-9'&.!?]+", r" ", s)
-    return "<sos> " + s.strip() + " <eos>"
+    return "<sos> " + " ".join(list(tokenize(s.lower(), deacc=True))) + " <eos>"
 
 
 def flatten(l):
@@ -148,6 +145,6 @@ def flatten(l):
 
 
 if __name__ == "__main__":
-    # preprocess_embedding()
+    preprocess_embedding()
     get_paragraph_questions(os.path.join(DATA_SET_DIR, DEV_FILE))
     get_paragraph_questions(os.path.join(DATA_SET_DIR, TRAIN_FILE), os.path.join(EMBEDDING_DIR, "vocab.pkl"))
